@@ -466,7 +466,8 @@ module Torb
       body = keys.join(',')
       body << "\n"
       reservations.each do |reservation|
-        body << "#{reservation['id']},#{reservation['event_id']},#{reservation['sheet_rank']},#{reservation['sheet_num']},#{reservation['user_id']},#{reservation['reserved_at'].iso8601},#{reservation['canceled_at']&.iso8601 || ''},#{reservation['event_price'] + reservation['sheet_price']}\n"
+        price = reservation['event_price'] + reservation['sheet_price']
+        body << "#{reservation['id']},#{reservation['event_id']},#{reservation['sheet_rank']},#{reservation['sheet_num']},#{price},#{reservation['user_id']},#{reservation['reserved_at'].iso8601},#{reservation['canceled_at']&.iso8601 || ''}\n"
       end
 
       headers({
