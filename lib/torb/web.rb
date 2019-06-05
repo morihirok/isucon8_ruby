@@ -259,7 +259,7 @@ module Torb
       rows = db.xquery('SELECT event_id FROM reservations WHERE user_id = ? GROUP BY event_id ORDER BY MAX(IFNULL(canceled_at, reserved_at)) DESC LIMIT 5', user['id'])
       recent_events = rows.map do |row|
         event = get_event(row['event_id'])
-        event['sheets'].each { |_, sheet| sheet.delete('detail') }
+        event['sheets'].each { |_, sheet| sheet.delete(:detail) }
         event
       end
       user['recent_events'] = recent_events
