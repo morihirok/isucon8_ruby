@@ -38,6 +38,13 @@ module Torb
       content_type :json
     end
 
+    def logger
+      return @logger unless @logger.nil?
+      file = File.new("/home/isucon/app.log", 'a+')
+      file.sync = true
+      @logger = ::Logger.new(file)
+    end
+
     helpers do
       def db
         Thread.current[:db] ||= Mysql2::Client.new(
@@ -77,7 +84,7 @@ module Torb
         return unless event
 
         # zero fill
-        event['total']   = 0
+        event['total']   = 1000
         event['remains'] = 0
         event['sheets'] = {}
         %w[S A B C].each do |rank|
@@ -85,20 +92,14 @@ module Torb
         end
 
         sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
+        reservations = db.xquery('SELECT canceled_at, event_id, num, reserved_at, sheet_id, user_id, rank FROM sheets LEFT OUTER JOIN reservations ON sheets.id = reservations.sheet_id WHERE event_id = ? GROUP BY sheet_id, event_id HAVING reserved_at = MIN(reserved_at)', event['id'])
+
         sheets.each do |sheet|
           event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
-          event['total'] += 1
           event['sheets'][sheet['rank']]['total'] += 1
 
-          reservation = db.xquery('SELECT * FROM reservations WHERE event_id = ? AND sheet_id = ? AND canceled_at IS NULL GROUP BY event_id, sheet_id HAVING reserved_at = MIN(reserved_at)', event['id'], sheet['id']).first
-          if reservation
-            sheet['mine']        = true if login_user_id && reservation['user_id'] == login_user_id
-            sheet['reserved']    = true
-            sheet['reserved_at'] = reservation['reserved_at'].to_i
-          else
-            event['remains'] += 1
-            event['sheets'][sheet['rank']]['remains'] += 1
-          end
+          event['remains'] += 1
+          event['sheets'][sheet['rank']]['remains'] += 1
 
           event['sheets'][sheet['rank']]['detail'].push(sheet)
 
@@ -107,10 +108,19 @@ module Torb
           sheet.delete('rank')
         end
 
+        reservations.each do |reservation|
+          reservation['mine'] = true if login_user_id && reservation['user_id'] == login_user_id
+          reservation['reserved'] = true
+          reservation['reserved_at'] = reservation['reserved_at'].to_i
+          event['sheets'][reservation['rank']]['detail'][reservation['num'] - 1] = reservation
+          event['remains'] -= 1
+          event['sheets'][reservation['rank']]['remains'] -= 1
+        end
+
         event['public'] = event.delete('public_fg')
         event['closed'] = event.delete('closed_fg')
 
-        event
+        event 
       end
 
       def sanitize_event(event)
