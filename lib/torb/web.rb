@@ -85,20 +85,19 @@ module Torb
 
         # zero fill
         event['total']   = 1000
-        event['remains'] = 0
+        event['remains'] = 1000
         event['sheets'] = {}
         %w[S A B C].each do |rank|
           event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
         end
 
         sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
-        reservations = db.xquery('SELECT canceled_at, event_id, num, reserved_at, sheet_id, user_id, rank FROM sheets LEFT OUTER JOIN reservations ON sheets.id = reservations.sheet_id WHERE event_id = ? GROUP BY sheet_id, event_id HAVING reserved_at = MIN(reserved_at)', event['id'])
+        reservations = db.xquery('SELECT canceled_at, event_id, num, reserved_at, sheet_id, user_id, rank FROM sheets LEFT OUTER JOIN reservations ON sheets.id = reservations.sheet_id WHERE event_id = ? AND canceled_at IS NULL GROUP BY sheet_id, event_id HAVING reserved_at = MIN(reserved_at)', event['id'])
 
         sheets.each do |sheet|
           event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
           event['sheets'][sheet['rank']]['total'] += 1
 
-          event['remains'] += 1
           event['sheets'][sheet['rank']]['remains'] += 1
 
           event['sheets'][sheet['rank']]['detail'].push(sheet)
@@ -112,9 +111,9 @@ module Torb
           reservation['mine'] = true if login_user_id && reservation['user_id'] == login_user_id
           reservation['reserved'] = true
           reservation['reserved_at'] = reservation['reserved_at'].to_i
-          event['sheets'][reservation['rank']]['detail'][reservation['num'] - 1] = reservation
           event['remains'] -= 1
           event['sheets'][reservation['rank']]['remains'] -= 1
+          event['sheets'][reservation['rank']]['detail'][reservation['num'] - 1] = reservation
         end
 
         event['public'] = event.delete('public_fg')
