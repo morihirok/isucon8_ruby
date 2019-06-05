@@ -83,37 +83,44 @@ module Torb
         event = db.xquery('SELECT * FROM events WHERE id = ?', event_id).first
         return unless event
 
-        # zero fill
         event['total']   = 1000
         event['remains'] = 1000
-        event['sheets'] = {}
-        %w[S A B C].each do |rank|
-          event['sheets'][rank] = { 'total' => 0, 'remains' => 0, 'detail' => [] }
-        end
+        event['sheets'] = {
+            'S' => {
+                total: 50,
+                remains: 50,
+                price: event['price'] + 5000,
+                detail: (1..50).map { |num| { num: num } }
+            },
+            'A' => {
+                total: 150,
+                remains: 150,
+                price: event['price'] + 3000,
+                detail: (1..150).map { |num| { num: num } }
+            },
+            'B' => {
+                total: 300,
+                remains: 300,
+                price: event['price'] + 1000,
+                detail: (1..300).map { |num| { num: num } }
+            },
+            'C' => {
+                total: 500,
+                remains: 500,
+                price: event['price'],
+                detail: (1..500).map { |num| { num: num } }
+            },
+        }
 
-        sheets = db.query('SELECT * FROM sheets ORDER BY `rank`, num')
         reservations = db.xquery('SELECT canceled_at, event_id, num, reserved_at, sheet_id, user_id, rank FROM sheets LEFT OUTER JOIN reservations ON sheets.id = reservations.sheet_id WHERE event_id = ? AND canceled_at IS NULL GROUP BY sheet_id, event_id HAVING reserved_at = MIN(reserved_at)', event['id'])
-
-        sheets.each do |sheet|
-          event['sheets'][sheet['rank']]['price'] ||= event['price'] + sheet['price']
-          event['sheets'][sheet['rank']]['total'] += 1
-
-          event['sheets'][sheet['rank']]['remains'] += 1
-
-          event['sheets'][sheet['rank']]['detail'].push(sheet)
-
-          sheet.delete('id')
-          sheet.delete('price')
-          sheet.delete('rank')
-        end
 
         reservations.each do |reservation|
           reservation['mine'] = true if login_user_id && reservation['user_id'] == login_user_id
           reservation['reserved'] = true
           reservation['reserved_at'] = reservation['reserved_at'].to_i
           event['remains'] -= 1
-          event['sheets'][reservation['rank']]['remains'] -= 1
-          event['sheets'][reservation['rank']]['detail'][reservation['num'] - 1] = reservation
+          event['sheets'][reservation['rank']][:remains] -= 1
+          event['sheets'][reservation['rank']][:detail][reservation['num'] - 1] = reservation
         end
 
         event['public'] = event.delete('public_fg')
