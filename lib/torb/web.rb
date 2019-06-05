@@ -217,17 +217,27 @@ module Torb
         halt_with_error 403, 'forbidden'
       end
 
-      rows = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id WHERE r.user_id = ? ORDER BY IFNULL(r.canceled_at, r.reserved_at) DESC LIMIT 5', user['id'])
+      rows = db.xquery('SELECT r.*, s.rank AS sheet_rank, s.num AS sheet_num, e.title, e.price, e.closed_fg, e.public_fg FROM reservations r INNER JOIN sheets s ON s.id = r.sheet_id INNER JOIN events e ON r.event_id = e.id WHERE r.user_id = ? ORDER BY IFNULL(r.canceled_at, r.reserved_at) DESC LIMIT 5', user['id'])
       recent_reservations = rows.map do |row|
-        event = get_event(row['event_id'])
-        price = event['sheets'][row['sheet_rank']]['price']
-        event.delete('sheets')
-        event.delete('total')
-        event.delete('remains')
+        price = if row['sheet_rank'] == 'C'
+                  row['price']
+                elsif row['sheet_rank'] == 'B'
+                  row['price'] + 1000
+                elsif row['sheet_rank'] == 'A'
+                  row['price'] + 3000
+                elsif row['sheet_rank'] == 'S'
+                  row['price'] + 5000
+                end
 
         {
           id:          row['id'],
-          event:       event,
+          event:       {
+              closed: row['closed_fg'],
+              id: row['event_id'],
+              price: row['price'],
+              public: row['public_fg'],
+              title: row['title']
+          },
           sheet_rank:  row['sheet_rank'],
           sheet_num:   row['sheet_num'],
           price:       price,
